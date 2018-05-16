@@ -1,4 +1,4 @@
-long lastJob1s = 0, lastJob5s = 0, lastJob10s = 0, lastJob30s = 0, lastJob1min = 0, lastJob5min = 0;
+long lastJob1s = 0, lastJob5s = 0, lastJob10s = 0, lastJob30s = 0, lastJob1min = 0, lastJob5min = 0, lastJob10min = 0;
 float myTeplota1, myTeplota2, myTeplota3, myTlak1, myVlhkost1;
 int myZvuk;
 const int sampleWindow = 50; // Sample window width in mS (50 mS = 20Hz)
@@ -29,7 +29,7 @@ ESP8266WebServer server(80);
 Adafruit_BME280 bme;
 
 //Nastavení teplotních čidel DS18B20
-#define ONE_WIRE_BUS_PIN D8 // onewire pro čidla na D8
+#define ONE_WIRE_BUS_PIN D4 // onewire pro čidla na D4
 OneWire oneWire(ONE_WIRE_BUS_PIN);
 DallasTemperature sensors(&oneWire);
 DeviceAddress Probe01 = { 0x28, 0xFF, 0x29, 0x15, 0x04, 0x17, 0x03, 0x04 };
@@ -54,6 +54,8 @@ void setup() {
   if (!bme.begin(BME280_ADRESA)) {
     Serial.println("BME280 senzor nenalezen, zkontrolujte zapojeni!");
     while (1);
+  } else {
+    Serial.println("BME280 senzor inicializován");
   }
 
   //Inicializace File Systemu
@@ -63,7 +65,8 @@ void setup() {
   //Inicializace AP Modu
   WiFi.mode(WIFI_AP_STA);
   WiFi.hostname("iTRUBEC");
-  WiFi.softAP(ssid, pass); //Password může být vynecháno pro otevřené připojení
+  //WiFi.softAP(ssid, pass); //Password může být vynecháno pro otevřené připojení
+  WiFi.softAP(ssid);
   IPAddress myIP = WiFi.softAPIP();
   Serial.print("Web Server IP: ");
   Serial.println(myIP);
@@ -91,16 +94,16 @@ void loop() {
   } // 1s konec
 
   // LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-
-  if (millis() > (5000 + lastJob1s))
+  if (millis() > (5000 + lastJob5s))
   {
     // kód vykonaný každých 5 vteřin (5000 ms)
 
 
-    lastJob1s = millis();
+    lastJob5s = millis();
   } // 5s konec
 
   // LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s
-  if (millis() > (10000 + lastJob1s))
+  if (millis() > (10000 + lastJob10s))
   {
     // kód vykonaný každých 10 vteřin (10000 ms)
     ReadBME(); //čtení BME280
@@ -108,8 +111,21 @@ void loop() {
     myTeplota2 = sensors.getTempC(Probe01);
     myTeplota3 = sensors.getTempC(Probe02);
     SamplujZvuk(); //Získání vzorku zvuku
+    Serial.print("Teploty: ");
+    Serial.print(myTeplota1);
+    Serial.print(", ");
+    Serial.print(myTeplota2);
+    Serial.print(", ");
+    Serial.println(myTeplota3);
+    Serial.print("Vlhkost: ");
+    Serial.println(myVlhkost1);
+    Serial.print("Tlak: ");
+    Serial.println(myTlak1);
+    Serial.print("Zvuk: ");
+    Serial.println(myZvuk);
+    Serial.println("----------------");
 
-    lastJob1s = millis();
+    lastJob10s = millis();
   } // 10s konec
 
   // LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-
@@ -131,12 +147,12 @@ void loop() {
   } // 1min konec
 
   // LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-
-  if (millis() > (300000 + lastJob1min))
+  if (millis() > (300000 + lastJob10min))
   {
     // kód vykonaný každých 5 minut (300000 ms)
 
 
-    lastJob1min = millis();
+    lastJob10min = millis();
   } // 5min konec
 
   // LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-
@@ -232,8 +248,8 @@ void SamplujZvuk() {
 
 void append_HTML_header() {
   webpage += "<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN' 'http://www.w3.org/TR/html4/strict.dtd'><html><head>";
-  webpage += "<meta http-equiv='Content-Type' content='text/html; charset=UTF-8'/><meta http-equiv='refresh' content='5'>"; // 5-sec refresh time, test needed to prevent auto updates repeating some commands
-  webpage += "<title>iTRUBEC – monitor</title>";
+  webpage += "<meta http-equiv='Content-Type' content='text/html; charset=UTF-8'/><meta http-equiv='refresh' content='10'>"; // 10-sec refresh time, test needed to prevent auto updates repeating some commands
+  webpage += "<title>iTRUBEC - Monitor</title>";
   webpage += "</head><body><img src='\itrubec.png' alt='iTRUBEC' width='200' height='200' align='right'><h1>iTRUBEC</h1>";
 }
 
