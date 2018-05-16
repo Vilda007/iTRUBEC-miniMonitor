@@ -74,7 +74,7 @@ void setup() {
   //Initialize Webserver
   server.on("/", handleRoot);
   server.on("/monitor", monitor);
-  server.onNotFound(handleWebRequests); //Set setver all paths are not found so we can handle as per URI
+  //server.onNotFound(handleWebRequests); //Set setver all paths are not found so we can handle as per URI
   server.begin();
 
 } // setup konec
@@ -250,7 +250,7 @@ void append_HTML_header() {
   webpage += "<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN' 'http://www.w3.org/TR/html4/strict.dtd'><html><head>";
   webpage += "<meta http-equiv='Content-Type' content='text/html; charset=UTF-8'/><meta http-equiv='refresh' content='10'>"; // 10-sec refresh time, test needed to prevent auto updates repeating some commands
   webpage += "<title>iTRUBEC - Monitor</title>";
-  webpage += "</head><body><img src='\itrubec.png' alt='iTRUBEC' width='200' height='200' align='right'><h1>iTRUBEC</h1>";
+  webpage += "</head><body><img src='\\itrubec.jpg' alt='iTRUBEC' width='200' height='200' align='right'><h1>iTRUBEC</h1>";
 }
 
 void append_HTML_footer() { // Saves repeating many lines of code for HTML page footers
