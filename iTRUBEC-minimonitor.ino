@@ -1,24 +1,25 @@
 long lastJob1s = 0, lastJob5s = 0, lastJob10s = 0, lastJob30s = 0, lastJob1min = 0, lastJob5min = 0, lastJob10min = 0;
 float myTeplota1, myTeplota2, myTeplota3, myTlak1, myVlhkost1, myTeplota1x, myTeplota2x, myTeplota3x, myTlak1x, myVlhkost1x, kompenzace = 0;
-int myZvuk, myZvukx, thod = 0, tmin = 0, tsec = 0;
-const int sampleWindow = 50; // Sample window width in mS (50 mS = 20Hz)
+int myZvuk, myZvukx, thod, tmin, tsec, page, pagecount;
+const int sampleWindow = 200; // Sample window width in mS (50 mS = 20Hz)
 unsigned int sample;
-String webpage = "", mylog = "";
+String webpage = "", mylog = "", paging = "", buff = "";
 
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <ESP8266WebServer.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
-#include <FS.h>   //Include File ystem Headers
+#include <FS.h>
 #include <Wire.h>
 #include <DallasTemperature.h>
 #include "Timer.h"
 
-Timer t;
+extern "C" {
+#include <user_interface.h>
+}
 
-const char* imagefile = "/itrubec.jpg";
-const char* htmlfile = "/index.html";
+Timer t;
 
 //ESP AP Mode
 //IPAddress ip(192, 168, 4, 1);
@@ -33,7 +34,7 @@ ESP8266WebServer server(80);
 Adafruit_BME280 bme;
 
 //Nastaveni teplotnich cidel DS18B20
-#define ONE_WIRE_BUS_PIN D4 // onewire pro Cidla na D4
+#define ONE_WIRE_BUS_PIN D4 // onewire pro cidla na D4
 OneWire oneWire(ONE_WIRE_BUS_PIN);
 DallasTemperature sensors(&oneWire);
 DeviceAddress Probe01 = { 0x28, 0xFF, 0x29, 0x15, 0x04, 0x17, 0x03, 0x04 };
@@ -41,6 +42,10 @@ DeviceAddress Probe02 = { 0x28, 0xFF, 0x29, 0x13, 0x04, 0x17, 0x03, 0x0D };
 
 // SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-
 void setup() {
+  thod = 0;
+  tmin = 0;
+  tsec = 0;
+
   Serial.begin(9600);
   Serial.println();
 
@@ -62,9 +67,9 @@ void setup() {
     Serial.println("BME280 senzor inicializovan");
   }
 
-  //Inicializace File ystemu
+  //Inicializace File systemu
   SPIFFS.begin();
-  Serial.println("File ystem inicializovan");
+  Serial.println("File system inicializovan");
   //SPIFFS.format();
   //Serial.println("Spiffs formatted");
   //SPIFFSDirlist();
@@ -117,63 +122,35 @@ void loop() {
   if (millis() > (1000 + lastJob1s))
   {
     // kod vykonany kazdou 1 vterinu (1000 ms)
-
-
+    Serial.print ("Cas: ");
+    Serial.print (thod);
+    Serial.print (":");
+    Serial.print (tmin);
+    Serial.print (":");
+    Serial.println (tsec);
     lastJob1s = millis();
   } // 1s konec
-
-  // LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-
-  if (millis() > (5000 + lastJob5s))
-  {
-    // kod vykonany kazdych 5 vterin (5000 ms)
-
-
-    lastJob5s = millis();
-  } // 5s konec
 
   // LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s
   if (millis() > (10000 + lastJob10s))
   {
     // kod vykonany kazdych 10 vterin (10000 ms)
-    ReadBME(); //Cteni BME280
-    sensors.requestTemperatures(); //Cteni DS18B20
-    myTeplota2x = myTeplota2;
-    myTeplota3x = myTeplota3;
-    myTeplota2 = sensors.getTempC(Probe01);
-    myTeplota3 = sensors.getTempC(Probe02);
-    SamplujZvuk(); //Ziskani vzorku zvuku
-    Serial.print("Teploty: ");
-    Serial.print(myTeplota1);
-    Serial.print(", ");
-    Serial.print(myTeplota2);
-    Serial.print(", ");
-    Serial.println(myTeplota3);
-    Serial.print("Vlhkost: ");
-    Serial.println(myVlhkost1);
-    Serial.print("Tlak: ");
-    Serial.println(myTlak1);
-    Serial.print("Zvuk: ");
-    Serial.println(myZvuk);
-    Serial.println("----------------");
+    if (wifi_softap_get_station_num() > 0) {
+      doMeasuring();
+    }
 
     //SPIFFSDirlist();
 
     lastJob10s = millis();
   } // 10s konec
 
-  // LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-
-  if (millis() > (30000 + lastJob30s))
-  {
-    // kod vykonany kazdych 30 vterin (30000 ms)
-
-
-    lastJob30s = millis();
-  } //30s konec
-
   // LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min
   if (millis() > (60000 + lastJob1min))
   {
     // kod vykonany kazdou 1 minutu (60000 ms)
+    if (wifi_softap_get_station_num() == 0) {
+      doMeasuring();
+    }
     zapisLog();
 
     lastJob1min = millis();
@@ -278,13 +255,17 @@ void SamplujZvuk() {
     }
   }
   peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
-  //double volts = (peakToPeak * 5.0) / 1024;  // convert to volts
   myZvukx = myZvuk;
   myZvuk = peakToPeak;
-  //Serial.println(volts);
 }
 
 void append_HTML_header(int refresh, char* title) {
+  if ((server.arg("h").toInt() >= 0) && (server.arg("h").toInt() <= 23) && (server.arg("h") != "")) {
+    thod = (server.arg("h").toInt());
+  }
+  if ((server.arg("m").toInt() >= 0) && (server.arg("m").toInt() <= 59) && (server.arg("m") != "")) {
+    tmin = (server.arg("m").toInt());
+  }
   webpage += "<html><head>";
   webpage += "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>";
   if (refresh > 0)
@@ -314,6 +295,17 @@ void append_HTML_header(int refresh, char* title) {
   webpage += "</head><body><h1><img src=\"/itrubec.jpg\" width=\"200\" height=\"200\" alt=\"iTRUBEC\"> iTRUBEC – ";
   webpage += title;
   webpage += "</h1>";
+  webpage += "<center><h2>Internal time: ";
+  if (thod < 10) {
+    webpage += "0";
+  }
+  webpage += thod;
+  webpage += ":";
+  if (tmin < 10) {
+    webpage += "0";
+  }
+  webpage += tmin;
+  webpage += "</h2></center>";
   append_HTML_menu();
 }
 
@@ -344,6 +336,14 @@ void append_HTML_footer() { // Saves repeating many lines of code for HTML page 
 
 void datalog() {
   webpage = "";
+  paging = "|";
+  pagecount = 0;
+  int recordsPerPage = 0;
+  if (server.arg("p") == "") {
+    page = 1;
+  } else {
+    page = server.arg("p").toInt();
+  }
   append_HTML_header(65, "Log");
   if (SPIFFS.exists("/itrubec.csv")) {
     File f = SPIFFS.open("/itrubec.csv", "r");
@@ -353,18 +353,56 @@ void datalog() {
       webpage += "<table width=\"100%\"><thead><tr><td rowspan=\"2\" valign=\"middle\" align=\"center\">Time</td><td colspan=\"3\" align=\"center\">Temperature [°C]</td><td align=\"center\">Pressure</td><td align=\"center\">Humidity</td><td align=\"center\">Noise</td></tr>";
       webpage += "<tr><td align=\"center\">Temp1</td><td align=\"center\">Temp2</td><td align=\"center\">Temp3</td><td align=\"center\">[hPa]</td><td align=\"center\">[%]</td><td align=\"center\">[0-1024]</td></tr></thead><tbody>";
       while (f.available()) {
-        webpage += "<tr>";
-        for (int i = 0; i <= 5; i++) {
-          webpage += "<td align=\"center\">";
-          webpage += f.readStringUntil(';');
-          webpage += "</td>";
+        //Serial.println(pagecount + " x " + page);
+        if (recordsPerPage <= 40) {
+          recordsPerPage += 1;
+        } else {
+          pagecount += 1;
+          recordsPerPage = 0;
+          paging += " <a href=\"/datalog?p=";
+          paging += pagecount;
+          paging += "\">";
+          if (pagecount == page) {
+            paging += "&gt;<b>";
+          }
+          paging += pagecount;
+          if (pagecount == page) {
+            paging += "</b>&lt;";
+          }
+          paging += "</a> |";
         }
-        webpage += "<td align=\"center\">";
-        webpage += f.readStringUntil('\n');
-        webpage += "</td></tr>";
+        if (pagecount == page) { //tuhle stranku vypsat
+          webpage += "<tr>";
+          for (int i = 0; i <= 5; i++) {
+            webpage += "<td align=\"center\">";
+            webpage += f.readStringUntil(';');
+            webpage += "</td>";
+          }
+          webpage += "<td align=\"center\">";
+          webpage += f.readStringUntil('\n');
+          webpage += "</td></tr>";
+        } else { //strankovani
+          buff = f.readStringUntil('\n');
+        }
+        //Serial.println(paging);
       }
       f.close();
       webpage += "<tbody></table>";
+      if (pagecount >= 2) {
+        webpage += "<center><hr/>";
+        if (page > 1) {
+          webpage += "<a href=\"/datalog?p=";
+          webpage += page - 1;
+          webpage += "\"><div class=\"btn\" style=\"display: inline;\">&nbsp;&nbsp;&lt;&lt;&nbsp;&lt;&nbsp;&nbsp;</div></a> ";
+        }
+        webpage += paging;
+        if (page < pagecount) {
+          webpage += " <a href=\"/datalog?p=";
+          webpage += page + 1;
+          webpage += "\"><div class=\"btn\" style=\"display: inline;\">&nbsp;&nbsp;&gt;&nbsp;&gt;&gt;&nbsp;&nbsp;</div></a>";
+        }
+        webpage += "</center><hr/>";
+      }
       append_HTML_logmenu(velikost);
     }
   } else {
@@ -395,11 +433,40 @@ void deletelogQ() {
 void mysetup() {
   webpage = "";
   append_HTML_header(0, "Setup");
-  webpage += "<br/><br/><br/>";
   webpage += "<center>";
-  webpage += "<span class=\"note\">...some setup stuff to be added here...</span>";
+  webpage += "<h2>Internal clock setup</h2>";
+  webpage += "<h3>Click hour</h3>";
+  for (int i = 1; i <= 23; i++) {
+    webpage += " <a href=\"/mysetup?h=";
+    webpage += i;
+    webpage += "\"><div class=\"btn\" style=\"display: inline;\"> ";
+    if (i < 10) {
+      webpage += "0";
+    }
+    webpage += i;
+    webpage += " </div></a> ";
+    if ((i % 12) == 0) {
+      webpage += "<br/><br/> ";
+    }
+  }
+  webpage += " <a href=\"/mysetup?h=0\"><div class=\"btn\" style=\"display: inline;\"> 00 </div></a> ";
+  webpage += "<h3>Click minute</h3>";
+  for (int i = 1; i <= 59; i++) {
+    webpage += " <a href=\"/mysetup?m=";
+    webpage += i;
+    webpage += "\"><div class=\"btn\" style=\"display: inline;\"> ";
+    if (i < 10) {
+      webpage += "0";
+    }
+    webpage += i;
+    webpage += " </div></a> ";
+    if ((i % 10) == 0) {
+      webpage += "<br/><br/> ";
+    }
+  }
+  webpage += " <a href=\"/mysetup?m=0\"><div class=\"btn\" style=\"display: inline;\"> 00 </div></a> ";
   webpage += "</center>";
-  webpage += "<br/><br/><br/>";
+  webpage += "<br/><br/> ";
   append_HTML_footer();
   server.send(200, "text/html", webpage);
 }
@@ -428,31 +495,6 @@ void mymonitor() {
   webpage = "";
   webpage += "<img src=\"/beemonitor.gif\" width=\"195\" height=\"168\" align=\"right\" alt=\"...monitoring...\">";
   append_HTML_header(10, "Monitor");
-  /*
-    webpage += "Teplota 1: <b>";
-    webpage +=  kompenzuj(myTeplota1);
-    webpage += "°C</b>";
-    webpage += "<br>";
-    webpage += "Teplota 2: <b>";
-    webpage += myTeplota2;
-    webpage += "°C</b>";
-    webpage += "<br>";
-    webpage += "Teplota 3: <b>";
-    webpage += myTeplota3;
-    webpage += "°C</b>";
-    webpage += "<br>";
-    webpage += "Tlak: <b>";
-    webpage += myTlak1;
-    webpage += " hPa</b>";
-    webpage += "<br>";
-    webpage += "Vlhkost: <b>";
-    webpage += myVlhkost1;
-    webpage += " %</b>";
-    webpage += "<br>";
-    webpage += "Zvuk: <b>";
-    webpage += myZvuk;
-    webpage += "<br>";
-  */
   // ukazatel(char* nazev, char* jednotka, float hodnota, float multi, float ico)
   ukazatel("Temperature 1", "°C", kompenzuj(myTeplota1), 5, (myTeplota1x - myTeplota1));
   ukazatel("Temperature 2", "°C", myTeplota2, 5, (myTeplota2x - myTeplota2));
@@ -570,4 +612,29 @@ void ukazatel(char* nazev, char* jednotka, float hodnota, float multi, float ico
   webpage += "</tr>";
   webpage += "</tbody>";
   webpage += "</table>";
+}
+
+void doMeasuring() {
+  ReadBME(); //Cteni BME280
+  sensors.requestTemperatures(); //Cteni DS18B20
+  myTeplota2x = myTeplota2;
+  myTeplota3x = myTeplota3;
+  myTeplota2 = sensors.getTempC(Probe01);
+  myTeplota3 = sensors.getTempC(Probe02);
+  SamplujZvuk(); //Ziskani vzorku zvuku
+  Serial.print("Teploty: ");
+  Serial.print(myTeplota1);
+  Serial.print(", ");
+  Serial.print(myTeplota2);
+  Serial.print(", ");
+  Serial.println(myTeplota3);
+  Serial.print("Vlhkost: ");
+  Serial.println(myVlhkost1);
+  Serial.print("Tlak: ");
+  Serial.println(myTlak1);
+  Serial.print("Zvuk: ");
+  Serial.println(myZvuk);
+  Serial.println("----------------");
+  Serial.print("Number of WiFi clients connected: ");
+  Serial.println(wifi_softap_get_station_num());
 }
