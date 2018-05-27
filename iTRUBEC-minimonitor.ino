@@ -1,9 +1,10 @@
 long lastJob1s = 0, lastJob5s = 0, lastJob10s = 0, lastJob30s = 0, lastJob1min = 0, lastJob5min = 0, lastJob10min = 0;
 float myTeplota1, myTeplota2, myTeplota3, myTlak1, myVlhkost1, myTeplota1x, myTeplota2x, myTeplota3x, myTlak1x, myVlhkost1x, kompenzace = 0;
-int myZvuk, myZvukx, thod, tmin, tsec, page, pagecount;
+int myZvuk, myZvukx, thod, tmin, tsec, page, pagecount, APwatch = 0;
 const int sampleWindow = 200; // Sample window width in mS (50 mS = 20Hz)
 unsigned int sample;
 String webpage = "", mylog = "", paging = "", buff = "";
+bool sleep = true;
 
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
@@ -42,6 +43,7 @@ DeviceAddress Probe02 = { 0x28, 0xFF, 0x29, 0x13, 0x04, 0x17, 0x03, 0x0D };
 
 // SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-
 void setup() {
+
   thod = 0;
   tmin = 0;
   tsec = 0;
@@ -75,39 +77,7 @@ void setup() {
   //SPIFFSDirlist();
 
   //Inicializace AP Modu
-  WiFi.mode(WIFI_AP);
-  WiFi.hostname("iTRUBEC");
-  //WiFi.softAP(ssid, pass); //Password muze byt vynechano pro otevrene pripojeni
-  WiFi.softAP(ssid);
-  IPAddress myIP = WiFi.softAPIP();
-  Serial.print("Web Server IP: ");
-  Serial.println(myIP);
-
-  // Set up mDNS responder:
-  // - first argument is the domain name, in this example
-  //   the fully-qualified domain name is "esp8266.local"
-  // - second argument is the IP address to advertise
-  //   we send our IP address on the WiFi network
-  if (!MDNS.begin("itrubec")) {
-    Serial.println("Error setting up MDNS responder!");
-    while (1) {
-      delay(1000);
-    }
-  }
-  Serial.println("mDNS responder started");
-
-  //Initialize Webserver
-  server.on("/", handleRoot);
-  server.on("/monitor", mymonitor);
-  server.on("/datalog", datalog);
-  server.on("/deletelog", deletelog);
-  server.on("/deletelogQ", deletelogQ);
-  server.on("/mysetup", mysetup);
-  server.onNotFound(handleWebRequests); //Set setver all paths are not found so we can handle as per URI
-  server.begin();
-
-  // Add service to MDNS-SD
-  MDNS.addService("http", "tcp", 80);
+  startAP();
 
   int tickEvent = t.every(1000, updateClock);
 
@@ -117,10 +87,10 @@ void setup() {
 void loop() {
   server.handleClient();
   t.update();
-
-  // LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s
-  if (millis() > (1000 + lastJob1s))
-  {
+  /*
+    // LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s
+    if (millis() > (1000 + lastJob1s))
+    {
     // kod vykonany kazdou 1 vterinu (1000 ms)
     Serial.print ("Cas: ");
     Serial.print (thod);
@@ -129,14 +99,16 @@ void loop() {
     Serial.print (":");
     Serial.println (tsec);
     lastJob1s = millis();
-  } // 1s konec
-
+    } // 1s konec
+  */
   // LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s
   if (millis() > (10000 + lastJob10s))
   {
     // kod vykonany kazdych 10 vterin (10000 ms)
     if (wifi_softap_get_station_num() > 0) {
       doMeasuring();
+    } else {
+      stopAP();
     }
 
     //SPIFFSDirlist();
@@ -148,6 +120,7 @@ void loop() {
   if (millis() > (60000 + lastJob1min))
   {
     // kod vykonany kazdou 1 minutu (60000 ms)
+    startAP();
     if (wifi_softap_get_station_num() == 0) {
       doMeasuring();
     }
@@ -155,16 +128,16 @@ void loop() {
 
     lastJob1min = millis();
   } // 1min konec
-
-  // LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-
-  if (millis() > (300000 + lastJob10min))
-  {
+  /*
+    // LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-LOOP-BLOCK-10min-
+    if (millis() > (300000 + lastJob10min))
+    {
     // kod vykonany kazdych 5 minut (300000 ms)
 
 
     lastJob10min = millis();
-  } // 5min konec
-
+    } // 5min konec
+  */
   // LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-
 } // loop konec
 
@@ -337,14 +310,14 @@ void append_HTML_footer() { // Saves repeating many lines of code for HTML page 
 void datalog() {
   webpage = "";
   paging = "|";
-  pagecount = 0;
+  pagecount = 1;
   int recordsPerPage = 0;
   if (server.arg("p") == "") {
     page = 1;
   } else {
     page = server.arg("p").toInt();
   }
-  append_HTML_header(65, "Log");
+  append_HTML_header(62, "Log");
   if (SPIFFS.exists("/itrubec.csv")) {
     File f = SPIFFS.open("/itrubec.csv", "r");
     if (f && f.size()) {
@@ -547,6 +520,9 @@ void updateClock() {
   if (thod >= 24) {
     thod = 0;
   }
+  if (APwatch > 0) {
+    APwatch -= 1;
+  }
 }
 
 void zapisLog() {
@@ -557,7 +533,7 @@ void zapisLog() {
   mylog += ":";
   mylog += tsec;
   mylog += ";";
-  mylog +=  kompenzuj(myTeplota1);
+  mylog += kompenzuj(myTeplota1);
   mylog += ";";
   mylog += myTeplota2;
   mylog += ";";
@@ -571,7 +547,9 @@ void zapisLog() {
   // open file for writing
   File f = SPIFFS.open("/itrubec.csv", "a");
   if (!f) {
-    Serial.println("Log file open failed");
+    Serial.println("Log file open failed!");
+  } else {
+    Serial.println("Log file updated.");
   }
   f.println(mylog);
   f.close();
@@ -638,3 +616,68 @@ void doMeasuring() {
   Serial.print("Number of WiFi clients connected: ");
   Serial.println(wifi_softap_get_station_num());
 }
+
+void startAP() {
+  if (sleep)
+  {
+    WiFi.forceSleepWake();
+    delay(1);
+    sleep = false;
+    //Inicializace AP Modu
+    Serial.println("Switching on AP...");
+    WiFi.mode(WIFI_AP);
+    WiFi.hostname("iTRUBEC");
+    //WiFi.softAP(ssid, pass); //Password muze byt vynechano pro otevrene pripojeni
+    WiFi.softAP(ssid);
+    delay(1);
+    IPAddress myIP = WiFi.softAPIP();
+    Serial.print("Web Server IP: ");
+    Serial.println(myIP);
+    // Set up mDNS responder:
+    // - first argument is the domain name, in this example
+    //   the fully-qualified domain name is "esp8266.local"
+    // - second argument is the IP address to advertise
+    //   we send our IP address on the WiFi network
+    if (!MDNS.begin("itrubec")) {
+      Serial.println("Error setting up MDNS responder!");
+      while (1) {
+        delay(1000);
+      }
+    }
+    Serial.println("mDNS responder started");
+
+    //Initialize Webserver
+    server.on("/", handleRoot);
+    server.on("/monitor", mymonitor);
+    server.on("/datalog", datalog);
+    server.on("/deletelog", deletelog);
+    server.on("/deletelogQ", deletelogQ);
+    server.on("/mysetup", mysetup);
+    server.onNotFound(handleWebRequests); //Set setver all paths are not found so we can handle as per URI
+    server.begin();
+
+    // Add service to MDNS-SD
+    MDNS.addService("http", "tcp", 80);
+
+    // wait 20 seconds for connection before disabling AP again
+    APwatch = 20;
+  }
+}
+
+void stopAP() {
+  if (APwatch == 0) {
+    if (!sleep)
+    {
+      sleep = true;
+      Serial.println("No client connected - switching off AP for a while...");
+      //thisclient.stop();//this is my wifi client connection - needs to be stopped before going to sleep mode.
+      //delay(1000); //make sure the tcp connection is stopped
+      wifi_set_sleep_type(LIGHT_SLEEP_T);
+      WiFi.disconnect();
+      WiFi.mode(WIFI_OFF);
+      WiFi.forceSleepBegin();
+      delay(1);
+    }
+  }
+}
+
